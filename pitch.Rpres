@@ -1,0 +1,44 @@
+
+Shiny App for Text Prediction
+Coursera Data Science Capstone Project
+========================================================
+author: Shouman Das
+date: 01/31/2017
+
+Introduction
+========================================================
+
+In this project, we make a shiny app which can predict the next word while writing. Basically we two types of model:
+- N-gram Model
+- Katz Backoff Model
+
+In N-gram model, we first create our N-gram(for our app we used bigrams, trigrams) and save it in a data file. This is a Markov Chain model. For example, if a bigram A-B has the highest probability in the training set, then for A we predict the next word to be B.
+In Katz backoff model, we discount the probability of highly available n-grams to rare n-grams. In our example we used a simplified version of backoff model.
+
+Data and Preprocessing
+========================================================
+Three types of Data:
+- News
+- Blogs
+- Twitter
+
+This dataset is highly uncleaned, so we used several cleaning procedure to have cleaned usable data. Some well known r package such as "tm", "stringi" etc have very useful. At the end of cleaning, we tokenized the data to have our unigrams, bigrams, trigrams. 
+
+Shiny App Overview
+========================================================
+
+* Input sentence in lower alphabet character
+* Choose one from the two models
+* App will predict the next word
+![Shiny App](app.png)
+
+Future Improvements
+========================================================
+- Kneser-Ney Smoothing
+- Recurrent Neural Network
+
+## Reference
+
+1. Katz Backoff Model (http://citeseerx.ist.psu.edu/viewdoc/summary?doi=10.1.1.129.7219)
+
+2.  N-gram model (https://en.wikipedia.org/wiki/N-gram)

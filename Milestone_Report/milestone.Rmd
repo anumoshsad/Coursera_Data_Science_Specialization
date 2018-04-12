@@ -1,0 +1,144 @@
+---
+title: "Data Science Capstone - Milestone Report"
+author: "Shouman Das"
+date: "February 23, 2017"
+output: html_document
+---
+# Executive Summary
+
+In this capstone project, we will build a predictive text model based on algorithms in natural language processing. Given a word in a text, our model will predict the next word. For our analysis and models, we use the data from a corpus called HC corpora(http://www.corpora.heliohost.org/). See the readme file at http://www.corpora.heliohost.org/aboutcorpus.html for details on the corpora available. 
+
+This report describes a exploratory analysis on the dataset and summarizes our future work to build the predictive text model.
+
+# Getting the Data
+
+First we download and extract the zip file contained at [Capstone Data](https://d396qusza40orc.cloudfront.net/dsscapstone/dataset/Coursera-SwiftKey.zip). The dataset contains three kinds of text documents: News, Blogs, Twitter posts. They are provided in 4 different languages: German, English, Finnis, Russian. In our capstone project we will only be concerned with the English Dataset. Now we load the data in Rstudio.
+
+```{r, cache=TRUE}
+setwd("~/Downloads/Data/Capstone/final/en_US")
+blogs <- readLines("en_US.blogs.txt", encoding = "UTF-8", skipNul = TRUE)
+news <- readLines("en_US.news.txt", encoding = "UTF-8", skipNul = TRUE)
+twitter <- readLines("en_US.twitter.txt", encoding = "UTF-8", skipNul = TRUE)
+```
+
+Now we make a basic summary of our text documents i.e. number of lines, words, file sizes. 
+
+```{r, cache = TRUE}
+library(stringi)
+
+# Number of words
+blogs.wd <- stri_count_words(blogs)
+news.wd <- stri_count_words(news)
+twitter.wd <- stri_count_words(twitter)
+
+# Calculate size
+blogs.sz = file.info("en_US.blogs.txt")$size / 2^20
+news.sz = file.info("en_US.news.txt")$size / 2^20
+twitter.sz = file.info("en_US.twitter.txt")$size / 2^20
+
+# summarize the data
+data.frame(source = c("blogs", "news", "twitter"),
+           num.lines = c(length(blogs),length(news), length(twitter)),
+           num.words = c(sum(blogs.wd), sum(news.wd), sum(twitter.wd)),
+           file.size.MB = c(blogs.sz, news.sz, twitter.sz)
+)
+           
+```
+
+# Sampling and Preprocessing
+
+Since our data is huge, we will sample the data before starting our exploratory analysis. We will consider 1% of our whole data.  
+``` {r, cache = TRUE}
+options(mc.cores=1)
+
+library(tm)
+set.seed(1234)
+Sample <- c(sample(blogs, length(blogs)*.01),
+            sample(news, length(news)*.01),
+            sample(twitter, length(twitter)*.01))
+
+# create myCorpus and preprocessing
+corpus <- VCorpus(VectorSource(Sample))
+corpus <- tm_map(corpus, PlainTextDocument)
+
+toSpace <- content_transformer(function(x, pattern) gsub(pattern, " ", x))
+
+
+# Removing URLs
+corpus <- tm_map(corpus, toSpace, "(f|ht)tp(s?)://(.*)[.][a-z]+")
+
+corpus <- tm_map(corpus, toSpace, "@[^\\s]+")
+corpus <- tm_map(corpus, content_transformer(tolower))
+corpus <- tm_map(corpus, removePunctuation)
+corpus <- tm_map(corpus, removeNumbers)
+corpus <- tm_map(corpus, stripWhitespace)
+corpus <- tm_map(corpus, PlainTextDocument)
+corpus <- VCorpus(VectorSource(corpus))
+```
+
+# Exploratory Analysis
+Now we can start our exploratory analysis. We will find out the most frequent unigram, bigram, trigram in our corpus. 
+
+```{r, cache = TRUE, message= FALSE}
+library(RWeka)
+library(ggplot2)
+
+get_freq <- function(tdm) {
+  freq <- sort(rowSums(as.matrix(tdm)), decreasing = TRUE)
+  return(data.frame(word = names(freq), freq = freq))
+}
+
+# unigramTokenizer <- function(x) NGramTokenizer(x, Weka_control(min = 1, max = 1))
+# bigramTokenizer <- function(x) NGramTokenizer(x, Weka_control(min = 2, max = 2))
+# trigramTokenizer <- function(x) NGramTokenizer(x, Weka_control(min = 3, max = 3))
+
+bigramTokenizer <-
+  function(x)
+    unlist(lapply(ngrams(words(x), 2), paste, collapse = " "), use.names = FALSE)
+trigramTokenizer <-
+  function(x)
+    unlist(lapply(ngrams(words(x), 3), paste, collapse = " "), use.names = FALSE)
+
+makePlot <- function(data, label) {
+  ggplot(data[1:25,], aes(reorder(word, -freq), freq)) +
+         labs(x = label, y = "Frequency") +
+         theme(axis.text.x = element_text(angle = 70, size = 15, hjust = 1)) +
+         geom_bar(stat = "identity", fill = I("blue1"))
+}
+
+unigram_freq <- get_freq(removeSparseTerms(
+    TermDocumentMatrix(corpus), 0.999))
+
+bigram_freq <- get_freq(removeSparseTerms(
+    TermDocumentMatrix(corpus, control = list(tokenize = bigramTokenizer)), 0.999))
+
+trigram_freq <- get_freq(removeSparseTerms(
+    TermDocumentMatrix(corpus, control = list(tokenize = trigramTokenizer)), 0.999))
+```
+
+Now we can have a look at the head of unigrams and make a histogram with the 25 most common unigrams.
+```{r, cache=TRUE, message=FALSE}
+head(unigram_freq, 10)
+makePlot(unigram_freq, "25 Most Common Unigrams")
+```
+
+We can also have similar plots for bigrams and trigrams.
+```{r, cache=TRUE, message=FALSE}
+head(bigram_freq, 10)
+makePlot(bigram_freq, "25 Most Common Unigrams")
+
+head(trigram_freq, 10)
+makePlot(trigram_freq, "25 Most Common Unigrams")
+
+saveRDS(unigram_freq, 'unigram_freq.rds')
+saveRDS(bigram_freq,'bigram_freq.rds')
+saveRDS(trigram_freq,'trigram_freq.rds')
+```
+
+## Interesting Observations
+
+* While running our code, most of the time is consumed by loading and reading the data. 
+* In our histograms, we did not remove stopwords, since stopwords are an important aspect of any language and we will include the stopwords when we build our predictive text model. 
+
+# Future work
+Our future work will be to implement our markov chain algorithm to create a predictive text model. After making our model we will deploy it as a shiny app, where a user can write something in english and our model will predict the next 2/3 words.
